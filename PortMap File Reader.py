@@ -17,9 +17,9 @@ def render(P: list[str]):
 
     try:
         # Read pixel data
-        pixel_array = np.array(list(map(int, P[4:])), dtype=np.uint8)
+        pixel_array = np.array(list(map(int, P[4:])), dtype=np.uint8) if header != 'P1' else np.array(list(map(int, P[3:])), dtype=np.uint8)
         pixel_array = pixel_array.reshape((height, width, 3)) if header == 'P3' else pixel_array.reshape((height, width))
-    except:
+    except ValueError:
         raise ValueError("Non-Integer pixel value")
 
     Max = np.max(pixel_array)
@@ -50,8 +50,8 @@ def _writemapfunc(path: str, data: 'np.ndarray', cmax=255):
     # {extensions} is a dictionary because exts['pbm'] = 'P1'. Easy.
     exts = {'pbm': 'P1', 'pgm': 'P2', 'ppm': 'P3'}
     
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     # Get file ext:
@@ -123,8 +123,8 @@ def hflip(data: 'np.ndarray', tile_size:int=1):
     """
 
     h = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types.get(id(data), None)
 
     if type(tile_size) != int:
@@ -159,8 +159,8 @@ def vflip(data: 'np.ndarray', tile_size:int=1):
     """
 
     v = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types.get(id(data), None)
 
     if type(tile_size) != int:
@@ -199,8 +199,8 @@ def rotate(data: 'np.ndarray', deg:str|int=90, tile_size:list[int]=[1, 1], only_
     # AI helped me learn about the np.transpose() function, but the implementation was all me.
     
     r = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     deg = int(deg)
@@ -211,13 +211,16 @@ def rotate(data: 'np.ndarray', deg:str|int=90, tile_size:list[int]=[1, 1], only_
     """
     This error variable will get the remainder between each side length and tile_size.
     If it's indivisible, it will set error to the respective string using `and`.
-    Then using `or`, it will compute both and if either return an 'error', then it will be raised. Test it!
+    Then using `or`, it will compute both sides and if either returns an 'error', then it will be raised.
+    If there is no error, then the left side of `and` statements will be False, and the `if error:` condition will fail.
+    Test it!
     """
-    # error = (width(data) % tile_size[1] != 0 and "tile_size must divide evenly into the width of the image") or (height(data) % tile_size[0] != 0 and "tile_size must divide evenly into the height of the image")
-    # if error:
-    if height(data) % tile_size[0] != 0 or width(data) % tile_size[1] != 0:
-        # raise ValueError(f"Invalid tile_size. {error}")
-        raise ValueError("Invalid tile_size. Maybe swap the values' places?")
+    error = (width(data) % tile_size[1] != 0 and "tile_size must divide evenly into the width of the image") or \
+        (height(data) % tile_size[0] != 0 and "tile_size must divide evenly into the height of the image")
+    if error:
+        raise ValueError(f"Invalid tile_size. {error}")
+    # if height(data) % tile_size[0] != 0 or width(data) % tile_size[1] != 0:
+    #     raise ValueError("Invalid tile_size. Maybe swap the values' places?")
     
     if type(only_rotate_tile) != bool:
         raise ValueError("only_rotate_tile must be a bool value.")
@@ -237,9 +240,9 @@ def rotate(data: 'np.ndarray', deg:str|int=90, tile_size:list[int]=[1, 1], only_
         new_data = data.reshape(shape(rows, tile_size[0], cols, tile_size[1]))
 
         if only_rotate_tile:
-            new_data = new_data[:, ::-1, :, ::-1, :]
+            new_data = new_data[:, ::-1, :, ::-1, ...]
         else:
-            new_data = new_data[::-1, :, ::-1, :, :]
+            new_data = new_data[::-1, :, ::-1, :, ...]
 
         new_data = new_data.reshape(shape(height(data), width(data)))
 
@@ -252,20 +255,20 @@ def rotate(data: 'np.ndarray', deg:str|int=90, tile_size:list[int]=[1, 1], only_
 
         if only_rotate_tile:
             # Swap the tiles' data, but do not reorder them(the 0 and 2 are same places)
-            new_data = new_data.transpose(0, 3, 2, 1, 4)
+            new_data = new_data.transpose(0, 3, 2, 1, 4) if ftype == 'ppm' else new_data.transpose(0, 3, 2, 1)
 
             if rotate == 1:
                 # Reverse the data in the height axis
-                new_data = new_data[:, ::-1, ::-1, :, :]
+                new_data = new_data[:, ::-1, ::-1, :, ...]
             elif rotate == 3:
                 # Reverse the data in the width axis
-                new_data = new_data[:, :, :, ::-1, :]
+                new_data = new_data[:, :, :, ::-1, ...]
             
             # Reshape it back to normal, but now it has flipped width and height
             new_data = new_data.reshape(shape(rows*tile_size[1], cols*tile_size[0]))
 
         else:
-            new_data = new_data.transpose(2, 1, 0, 3, 4)
+            new_data = new_data.transpose(2, 1, 0, 3, 4) if ftype == 'ppm' else new_data.transpose(2, 1, 0, 3)
             new_data = new_data.reshape(shape(cols*tile_size[0], rows*tile_size[1]))
             
             if rotate == 3: new_data = hflip(new_data, tile_size[1])
@@ -279,8 +282,8 @@ def rotate(data: 'np.ndarray', deg:str|int=90, tile_size:list[int]=[1, 1], only_
 def shrink(data: 'np.ndarray', scale: int|float=0.5) -> list:
     """Shrinks the image the specified amount"""
     s = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if not type(scale) in (float, int):
@@ -318,8 +321,8 @@ def tile(data: 'np.ndarray', nx: int, ny: int) -> list[int]:
     """Tiles map data nx and ny times"""
 
     i = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     nx, ny = int(nx), int(ny)
@@ -411,8 +414,8 @@ def subimage(data: 'np.ndarray', start:list[int], end:list[int], **functions:dic
     """
 
     s = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     ax, ay = start; bx, by = end
@@ -464,8 +467,8 @@ def makegray(data: 'np.ndarray'):
     """Turns a PPM image grayscale"""
 
     g = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype != 'ppm':
@@ -486,8 +489,8 @@ def makebinary(data: 'np.ndarray', threshold:int=100):
     """Turns a PGM or PPM image into a binary image"""
 
     b = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype == 'ppm':
@@ -513,8 +516,8 @@ def brightness(data, percent:float|str|int=100):
     """Changes the brightness percentage of the image"""
 
     b = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype == 'pbm':
@@ -563,8 +566,8 @@ def filter(data: 'np.ndarray', *options, **kwoptions):
     """
     # color:list[str], scale:int|float|list[int|float]|dict[str,int|float]=1
     f = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
     
     if ftype != 'ppm':
@@ -717,8 +720,8 @@ def complimentary_switch(data: 'np.ndarray'):
     """Switches the complimentary colors of the image"""
 
     c = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype != 'ppm':
@@ -803,8 +806,8 @@ def fast_compliment(data: 'np.ndarray'):
     """Switches the complementary colors of the image using vectorized operations"""
 
     f = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype != 'ppm':
@@ -887,8 +890,8 @@ def combine(data: list | list[list], axis=1) -> list:
     """Combines multiple images together"""
 
     c = t.time()
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = set()
     
     depth = _list_depth(data)
@@ -985,7 +988,8 @@ def to_ppm(data: 'np.ndarray') -> 'np.ndarray':
     """Converts a 2D array to a 3D array with 3 color values"""
 
     p = t.time()
-    global file_types
+    
+    # Get file type
     ftype = file_types[id(data)]
 
     if ftype == 'ppm':
@@ -1010,15 +1014,15 @@ def display(data: 'np.ndarray', cmap=None):
     except ValueError as e:
         raise e
     
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     if not cmap:
         if ftype == 'pgm':
-            plt.set_cmap('binary')
-        elif ftype == 'pbm':
             plt.set_cmap('gray')
+        elif ftype == 'pbm':
+            plt.set_cmap('binary')
 
     plt.imshow(data, cmap)
     fin_d = t.time()
@@ -1028,8 +1032,8 @@ def display(data: 'np.ndarray', cmap=None):
 
 def check_data(data: 'np.ndarray', return_shape=False):
     """Checks the data to see if it is a valid image"""
-    # Access types
-    global file_types
+
+    # Get file type
     ftype = file_types[id(data)]
 
     # If data is not an ndarray, then raise an exception:
@@ -1169,9 +1173,8 @@ def readfile(path:str, max_char=50_000):
 import matplotlib.pyplot as plt, numpy as np, traceback as tb, time as t, inspect
 file_types = dict()
 
-path = "dog_filter.ppm"
+path = "mario.pbm"
 
-# I changed code beyond the line. Oops \(*O*)/
 D = readfile(path)
 
 w = width(D)
@@ -1187,9 +1190,9 @@ def Part1():
     D_rotate3a = rotate(D, 270, [h//2, w//2])
 
     # Rotate tiny blocks around the center by increments of 90 degrees:
-    D_rotate1b = rotate(D, 90, [4, 4])
-    D_rotate2b = rotate(D, 180, [4, 4])
-    D_rotate3b = rotate(D, 270, [4, 4])
+    D_rotate1b = rotate(D, 90, [2, 2])
+    D_rotate2b = rotate(D, 180, [2, 2])
+    D_rotate3b = rotate(D, 270, [2, 2])
 
     # Rotate large blocks in place by increments of 90 degrees:
     D_rotate4a = rotate(D, 90, [h//2, w//2], True)
@@ -1197,12 +1200,13 @@ def Part1():
     D_rotate6a = rotate(D, 270, [h//2, w//2], True)
 
     # Rotate tiny blocks in place by increments of 90 degrees:
-    D_rotate4b = rotate(D, 90, [4, 4], True)
-    D_rotate5b = rotate(D, 180, [4, 4], True)
-    D_rotate6b = rotate(D, 270, [4, 4], True)
+    D_rotate4b = rotate(D, 90, [2, 2], True)
+    D_rotate5b = rotate(D, 180, [2, 2], True)
+    D_rotate6b = rotate(D, 270, [2, 2], True)
 
     data = [D, D_rotate1a, D_rotate2a, D_rotate3a, D, D_rotate1b, D_rotate2b, D_rotate3b, D, D_rotate4a, D_rotate5a, D_rotate6a, D, D_rotate4b, D_rotate5b, D_rotate6b, D]
 
+    print(file_types[id(D_rotate1a)])
     for i in data:
         display(i)
 
@@ -1260,6 +1264,3 @@ def Part3():
     writemapfile("dog_filter.ppm", D_only_filter)
 
 # Part3()
-
-if path == "dog_filter.ppm":
-    display(D)
